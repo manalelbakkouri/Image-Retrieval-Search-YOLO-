@@ -72,3 +72,5 @@ ehthumbs.db
 # Autres
 *.lock
 *.sqlite
+
+requirements.txt

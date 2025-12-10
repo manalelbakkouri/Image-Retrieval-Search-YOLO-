@@ -1,0 +1,74 @@
+# Ignore tout le dossier DATA (données volumineuses, annotations, images, modèles)
+DATA/
+DATA/**
+
+# Poids de modèles / checkpoints
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.onnx
+*.weights
+weights/
+models/
+
+# Fichiers d'archives et exportations volumineuses
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.rar
+*.7z
+
+# Grandes vidéos / médias
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+# Dossiers et sorties de dataset
+dataset_yolo/
+images/
+labels/
+images_raw/
+Annotations/
+annots_raw/
+
+# Caches Python / bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+ENV/
+venv*/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Logs / temporaires
+*.log
+logs/
+tmp/
+temp/
+cache/
+
+# IDE / éditeur
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Système
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Autres
+*.lock
+*.sqlite

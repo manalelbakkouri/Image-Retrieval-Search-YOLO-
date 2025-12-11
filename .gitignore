@@ -10,7 +10,7 @@ DATA/**
 *.onnx
 *.weights
 weights/
-models/
+
 
 # Fichiers d'archives et exportations volumineuses
 *.tar

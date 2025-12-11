@@ -74,3 +74,50 @@ ehthumbs.db
 *.sqlite
 
 requirements.txt
+# Fichiers log et système
+*.log
+.DS_Store
+Thumbs.db
+
+# Configuration environnement
+.env
+.env.backup
+.env.production
+/auth.json
+
+# IDE et éditeurs
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+
+# Node / front-end
+/node_modules
+/public/build
+/public/hot
+
+# Stockage et cache Laravel
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+
+# Homestead (si utilisé)
+Homestead.json
+Homestead.yaml
+
+# Données/images de projet
+/data/
+images_raw/
+dataset/
+*.tar
+*.zip
+*.csv
+*.h5
+*.npz
+*.pickle
+*.pkl

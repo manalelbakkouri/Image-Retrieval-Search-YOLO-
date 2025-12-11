@@ -3,7 +3,7 @@ DATA/
 DATA/**
 
 # Poids de modèles / checkpoints
-*.pt
+
 *.pth
 *.ckpt
 *.h5

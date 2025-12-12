@@ -2,6 +2,8 @@
 DATA/
 DATA/**
 
+data/
+data/**
 # Poids de modèles / checkpoints
 
 *.pth

@@ -47,11 +47,13 @@ class IndexAddResource(Resource):
         V = np.stack(vectors, axis=0).astype(np.float32)
 
         try:
-            self.index.add(class_id=class_id, vectors=V, metadata_list=metas)
+           
+            self.index.add_batch(class_id=class_id, vectors=V, metadata_list=metas, persist=True)
         except Exception as e:
             return err("Index add failed", 500, {"error": str(e)})
 
         return ok({"added": len(items), "class_id": class_id})
+
 
 
 class SearchSimilarResource(Resource):

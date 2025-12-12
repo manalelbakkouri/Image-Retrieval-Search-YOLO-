@@ -54,9 +54,13 @@ def create_app():
         SearchSimilarResource, "/search-similar",
         resource_class_kwargs={"index_service": index_service}
     )
+    
+    index_service = FaissIndexService(
+    base_dir=os.path.join(os.path.dirname(__file__), "data", "faiss"),
+    preload=True
+    )
 
-
-    # ✅ ERROR HANDLER (AU BON ENDROIT)
+    
     @app.errorhandler(Exception)
     def handle_exception(e):
         if isinstance(e, HTTPException):

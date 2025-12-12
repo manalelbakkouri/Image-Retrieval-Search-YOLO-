@@ -1,0 +1,123 @@
+# Ignore tout le dossier DATA (données volumineuses, annotations, images, modèles)
+DATA/
+DATA/**
+
+# Poids de modèles / checkpoints
+
+*.pth
+*.ckpt
+*.h5
+*.onnx
+*.weights
+weights/
+
+
+# Fichiers d'archives et exportations volumineuses
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.rar
+*.7z
+
+# Grandes vidéos / médias
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+# Dossiers et sorties de dataset
+dataset_yolo/
+images/
+labels/
+images_raw/
+Annotations/
+annots_raw/
+
+# Caches Python / bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+ENV/
+venv*/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Logs / temporaires
+*.log
+logs/
+tmp/
+temp/
+cache/
+
+# IDE / éditeur
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Système
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Autres
+*.lock
+*.sqlite
+
+requirements.txt
+# Fichiers log et système
+*.log
+.DS_Store
+Thumbs.db
+
+# Configuration environnement
+.env
+.env.backup
+.env.production
+/auth.json
+
+# IDE et éditeurs
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+
+# Node / front-end
+/node_modules
+/public/build
+/public/hot
+
+# Stockage et cache Laravel
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+
+# Homestead (si utilisé)
+Homestead.json
+Homestead.yaml
+
+# Données/images de projet
+/data/
+images_raw/
+dataset/
+*.tar
+*.zip
+*.csv
+*.h5
+*.npz
+*.pickle
+*.pkl

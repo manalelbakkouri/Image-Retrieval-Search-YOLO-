@@ -15,7 +15,7 @@ class FlaskCvClient
 
     public function detect(string $imagePath)
     {
-        return Http::attach(
+        return Http::timeout(60)->retry(2, 200)->attach(
             'image',
             fopen($imagePath, 'r'),
             basename($imagePath)
@@ -24,7 +24,7 @@ class FlaskCvClient
 
     public function describe(string $imagePath, array $bbox)
     {
-        return Http::attach(
+        return Http::timeout(60)->retry(2, 200)->attach(
             'image',
             fopen($imagePath, 'r'),
             basename($imagePath)

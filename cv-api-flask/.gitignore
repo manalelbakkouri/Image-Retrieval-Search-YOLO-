@@ -10,8 +10,7 @@ data/**
 *.ckpt
 *.h5
 *.onnx
-*.weights
-weights/
+
 
 
 # Fichiers d'archives et exportations volumineuses

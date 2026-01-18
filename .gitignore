@@ -73,7 +73,7 @@ ehthumbs.db
 *.lock
 *.sqlite
 
-requirements.txt
+
 # Fichiers log et système
 *.log
 .DS_Store

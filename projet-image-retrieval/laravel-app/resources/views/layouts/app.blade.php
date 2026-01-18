@@ -177,6 +177,25 @@
     .navbar .nav-link:hover{
       color: #fff;
     }
+    .vs-swatch{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    padding:10px 12px;
+    border-radius:16px;
+    border:1px solid rgba(2,6,23,.12);
+    background: rgba(255,255,255,.95);
+    box-shadow: 0 10px 20px rgba(2,6,23,.06);
+  }
+  .vs-swatch-color{
+    width:44px;
+    height:44px;
+    border-radius:14px;
+    border:1px solid rgba(2,6,23,.14);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.35);
+  }
+  .vs-swatch-meta{ line-height:1.1; }
+
 
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">

@@ -29,12 +29,87 @@
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, s => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
     }[s]));
   }
 
+  // ----------------- Color helpers -----------------
+
+  function clamp(v, a = 0, b = 255) { return Math.min(b, Math.max(a, v)); }
+  function round2(x) { return Math.round(Number(x) * 100) / 100; }
+
+  // LAB -> RGB (approx sRGB)
+  function labToRgb(L, a, b) {
+    let y = (L + 16) / 116;
+    let x = a / 500 + y;
+    let z = y - b / 200;
+
+    const f = t => {
+      const t3 = t * t * t;
+      return (t3 > 0.008856) ? t3 : (t - 16 / 116) / 7.787;
+    };
+
+    x = 0.95047 * f(x);
+    y = 1.00000 * f(y);
+    z = 1.08883 * f(z);
+
+    let r = x * 3.2406 + y * -1.5372 + z * -0.4986;
+    let g = x * -0.9689 + y * 1.8758 + z * 0.0415;
+    let bb = x * 0.0557 + y * -0.2040 + z * 1.0570;
+
+    const gamma = u => (u <= 0.0031308) ? 12.92 * u : 1.055 * Math.pow(u, 1 / 2.4) - 0.055;
+
+    r = gamma(r); g = gamma(g); bb = gamma(bb);
+
+    return {
+      r: clamp(Math.round(r * 255)),
+      g: clamp(Math.round(g * 255)),
+      b: clamp(Math.round(bb * 255)),
+    };
+  }
+
+  // Accepts: [r,g,b] OR number OR {r,g,b} OR {lab:[L,a,b]} OR [L,a,b]
+  function parseColorToRgb(c) {
+    if (c == null) return null;
+
+    if (typeof c === "number") {
+      const v = clamp(Math.round(c));
+      return { r: v, g: v, b: v, label: `gray(${v})` };
+    }
+
+    if (Array.isArray(c) && c.length === 3) {
+      const A = Number(c[0]), B = Number(c[1]), C = Number(c[2]);
+
+      // heuristic LAB
+      const isLab = (A >= 0 && A <= 100 && Math.abs(B) <= 160 && Math.abs(C) <= 160);
+      if (isLab) {
+        const rgb = labToRgb(A, B, C);
+        return { ...rgb, label: `LAB(${round2(A)},${round2(B)},${round2(C)})` };
+      }
+      const rgb = { r: clamp(Math.round(A)), g: clamp(Math.round(B)), b: clamp(Math.round(C)) };
+      return { ...rgb, label: `RGB(${rgb.r},${rgb.g},${rgb.b})` };
+    }
+
+    if (typeof c === "object") {
+      if ("r" in c && "g" in c && "b" in c) {
+        const rgb = { r: clamp(Math.round(c.r)), g: clamp(Math.round(c.g)), b: clamp(Math.round(c.b)) };
+        return { ...rgb, label: `RGB(${rgb.r},${rgb.g},${rgb.b})` };
+      }
+      if ("lab" in c && Array.isArray(c.lab) && c.lab.length === 3) {
+        const [L, a, b] = c.lab.map(Number);
+        const rgb = labToRgb(L, a, b);
+        return { ...rgb, label: `LAB(${round2(L)},${round2(a)},${round2(b)})` };
+      }
+    }
+
+    return null;
+  }
+
+  // ----------------- Canvas overlay -----------------
+
   function drawBoxes(highlightId) {
     if (!imgEl || !canvas) return;
+
     const rect = imgEl.getBoundingClientRect();
     canvas.width = rect.width;
     canvas.height = rect.height;
@@ -45,7 +120,7 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (const det of filtered) {
-      const [x1,y1,x2,y2] = det.bbox;
+      const [x1, y1, x2, y2] = det.bbox;
       const sx1 = (x1 / imageW) * canvas.width;
       const sy1 = (y1 / imageH) * canvas.height;
       const sx2 = (x2 / imageW) * canvas.width;
@@ -58,6 +133,8 @@
     }
   }
 
+  // ----------------- Filtering / list -----------------
+
   function updateStats() {
     setText(statTotal, String(detections.length));
     setText(statDesc, String(detections.filter(d => d.has_desc).length));
@@ -68,7 +145,8 @@
   function buildClassOptions() {
     if (!classFilter) return;
     const classes = Array.from(new Set(detections.map(d => d.class_name))).sort();
-    classFilter.innerHTML = `<option value="">Toutes les classes</option>` +
+    classFilter.innerHTML =
+      `<option value="">Toutes les classes</option>` +
       classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   }
 
@@ -82,7 +160,7 @@
       return matchQ && matchC;
     });
 
-    filtered.sort((a,b) => (b.confidence||0) - (a.confidence||0));
+    filtered.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
     renderList();
     updateStats();
 
@@ -105,12 +183,13 @@
       btn.className = "list-group-item list-group-item-action";
       btn.id = "det-btn-" + det.id;
 
-      btn.innerHTML =
-        `<div class="d-flex justify-content-between align-items-center">
+      btn.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
           <strong>${escapeHtml(det.class_name)}</strong>
-          <span class="badge bg-primary">${(det.confidence*100).toFixed(1)}%</span>
+          <span class="badge bg-primary">${(det.confidence * 100).toFixed(1)}%</span>
         </div>
-        <div class="small text-muted mt-1">${det.has_desc ? "Descripteurs ✅" : "Descripteurs ❌"}</div>`;
+        <div class="small text-muted mt-1">${det.has_desc ? "Descripteurs disponibles" : "Descripteurs non calculés"}</div>
+      `;
 
       btn.addEventListener("mouseenter", () => { hoverId = det.id; if (!selectedId) drawBoxes(hoverId); });
       btn.addEventListener("mouseleave", () => { hoverId = null; if (!selectedId) drawBoxes(null); });
@@ -120,24 +199,31 @@
     }
   }
 
-  // ----------- Modal Tabs rendering helpers -----------
+  // ----------------- Render helpers (modal tabs) -----------------
 
   function renderKeyValueTable(obj) {
     if (!obj || typeof obj !== "object") return `<div class="text-muted">Aucune donnée</div>`;
-    const rows = Object.entries(obj).map(([k,v]) => {
-      const val = (Array.isArray(v) || typeof v === "object") ? JSON.stringify(v) : String(v);
-      return `<tr><td class="text-muted" style="width:45%">${escapeHtml(k)}</td><td>${escapeHtml(val)}</td></tr>`;
+
+    const rows = Object.entries(obj).map(([k, v]) => {
+      const num = (typeof v === "number") ? round2(v) : v;
+      return `
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+          <div class="text-muted small">${escapeHtml(k)}</div>
+          <div class="fw-semibold">${escapeHtml(String(num))}</div>
+        </div>
+      `;
     }).join("");
-    return `<table class="table table-sm mb-0"><tbody>${rows}</tbody></table>`;
+
+    return `<div class="rounded-3 border bg-white p-2">${rows}</div>`;
   }
 
-  function renderVector(vec, maxLen=220) {
+  function renderVector(vec, maxLen = 220) {
     if (!Array.isArray(vec) || !vec.length) return "Aucun vecteur.";
     const short = vec.length > maxLen ? vec.slice(0, maxLen).concat(["…"]) : vec;
     return JSON.stringify(short);
   }
 
-  function renderMiniBars(containerId, arr, take=32) {
+  function renderMiniBars(containerId, arr, take = 32) {
     const el = document.getElementById(containerId);
     if (!el) return;
 
@@ -151,7 +237,7 @@
 
     const bars = slice.map(v => {
       const h = Math.max(2, Math.round((v / maxV) * 48));
-      return `<div style="width:8px;height:${h}px;background:#0d6efd;border-radius:3px;"></div>`;
+      return `<div style="width:8px;height:${h}px;background:linear-gradient(180deg,#4f46e5,#06b6d4);border-radius:6px;"></div>`;
     }).join("");
 
     el.innerHTML = `
@@ -162,46 +248,68 @@
     `;
   }
 
-  function renderDominantColors(containerId, colors) {
+  function renderDominantColors(containerId, colors, ratios) {
     const el = document.getElementById(containerId);
     if (!el) return;
 
     if (!Array.isArray(colors) || !colors.length) {
-      el.innerHTML = `<div class="text-muted">Aucune donnée</div>`;
+      el.innerHTML = `
+        <div class="text-muted">
+          Aucune couleur dominante visuelle.
+          <br><span class="small">Recalcule les descripteurs pour générer \`dominant\_colors\_rgb\`.</span>
+        </div>`;
       return;
     }
 
-    // On ne suppose pas le format (RGB/LAB). On affiche des “chips” avec valeurs.
+    const parsed = colors.map(parseColorToRgb).filter(Boolean).slice(0, 10);
+
+    if (!parsed.length) {
+      el.innerHTML = `<pre class="bg-light p-2 rounded mb-0">${escapeHtml(JSON.stringify(colors, null, 2))}</pre>`;
+      return;
+    }
+
+    const r = Array.isArray(ratios) ? ratios : [];
+
     el.innerHTML = `
       <div class="d-flex flex-wrap gap-2">
-        ${colors.slice(0, 8).map((c, i) => `
-          <div class="border rounded-pill px-2 py-1 bg-light">
-            <span class="text-muted small">#${i+1}</span>
-            <span class="small ms-2">${escapeHtml(JSON.stringify(c))}</span>
-          </div>
-        `).join("")}
+        ${parsed.map((c, i) => {
+          const pct = (r[i] != null) ? Math.round(Number(r[i]) * 100) : null;
+          return `
+            <div class="vs-swatch" title="${escapeHtml(c.label || '')}">
+              <div class="vs-swatch-color" style="background: rgb(${c.r},${c.g},${c.b});"></div>
+              <div class="vs-swatch-meta">
+                <div class="small text-muted">#${i + 1}${pct != null ? ` • ${pct}%` : ""}</div>
+                <div class="small fw-semibold">rgb(${c.r},${c.g},${c.b})</div>
+                ${pct != null ? `
+                  <div class="mt-1" style="height:6px;width:120px;background:#e9ecef;border-radius:999px;overflow:hidden;">
+                    <div style="height:6px;width:${clamp(pct,0,100)}%;background:linear-gradient(90deg,#4f46e5,#06b6d4);"></div>
+                  </div>
+                ` : ""}
+              </div>
+            </div>
+          `;
+        }).join("")}
       </div>
-      <div class="small text-muted mt-2">Affichage brut (selon ton format). Si tu veux, on convertit LAB → RGB plus tard.</div>
     `;
   }
 
+  // ----------------- Modal content -----------------
+
   function fillModalTabs(det) {
     const sub = document.getElementById("detSubTitle");
-    if (sub) sub.textContent = det.has_desc ? "Descripteurs disponibles ✅" : "Descripteurs non calculés ❌";
+    if (sub) sub.textContent = det.has_desc ? "Descripteurs disponibles" : "Descripteurs non calculés";
 
-    // meta
     const meta = document.getElementById("detMeta");
     if (meta) {
       meta.innerHTML = `
         <div><b>Classe</b>: ${escapeHtml(det.class_name)}</div>
-        <div><b>Confiance</b>: ${(det.confidence*100).toFixed(1)}%</div>
+        <div><b>Confiance</b>: ${(det.confidence * 100).toFixed(1)}%</div>
         <div><b>BBox</b>: [${det.bbox.map(v => Number(v).toFixed(1)).join(", ")}]</div>
       `;
     }
 
-    // If no descriptors
     if (!det.desc) {
-      renderDominantColors("colorsDominant", []);
+      renderDominantColors("colorsDominant", [], []);
       renderMiniBars("colorsHistMini", []);
       document.getElementById("tamuraBox").innerHTML = `<div class="text-muted">Aucune donnée</div>`;
       document.getElementById("gaborBox").innerHTML = `<div class="text-muted">Aucune donnée</div>`;
@@ -212,72 +320,82 @@
       return;
     }
 
-    // Map keys (adapte si tes noms sont différents)
-    const dominant = det.desc.dominant_colors || det.desc.dominant_colors_lab || det.desc.dominant || [];
-    const hist = det.desc.color_hist || det.desc.color_hist_hsv || det.desc.hist || [];
+    // ✅ IMPORTANT: prefer real RGB dominant colors
+    const dominant = det.desc.dominant_colors_rgb || det.desc.dominant_colors || det.desc.dominant || [];
+    const ratios = det.desc.dominant_colors_ratio || det.desc.dominant_ratio || [];
 
-    renderDominantColors("colorsDominant", dominant);
+    // histogram HSV
+    const hist = det.desc.color_hist_hsv || det.desc.color_hist || det.desc.hist || [];
+
+    renderDominantColors("colorsDominant", dominant, ratios);
     renderMiniBars("colorsHistMini", hist, 32);
 
+    // Tamura/Gabor more readable
     const tamura = det.desc.tamura || {};
     const gabor = det.desc.gabor || {};
-    const lbp = (det.desc.extra && det.desc.extra.lbp_hist) ? det.desc.extra.lbp_hist : (det.desc.lbp_hist || []);
-
     document.getElementById("tamuraBox").innerHTML = renderKeyValueTable(tamura);
     document.getElementById("gaborBox").innerHTML = renderKeyValueTable(gabor);
-    document.getElementById("lbpBox").innerHTML = `<div class="mb-2">${Array.isArray(lbp) ? "" : ""}</div>`;
+
+    // LBP
+    const lbp = det.desc.lbp_hist || (det.desc.extra && det.desc.extra.lbp_hist) || [];
     renderMiniBars("lbpBox", Array.isArray(lbp) ? lbp : [], 32);
 
+    // Hu moments
     const hu = det.desc.hu_moments || det.desc.hu || [];
+    document.getElementById("huBox").innerHTML =
+      Array.isArray(hu) && hu.length
+        ? `<div class="rounded-3 border bg-white p-2">
+            ${hu.slice(0, 12).map((v, i) => `
+              <div class="d-flex justify-content-between py-2 border-bottom">
+                <div class="text-muted small">Hu${i + 1}</div>
+                <div class="fw-semibold">${round2(v)}</div>
+              </div>
+            `).join("")}
+          </div>`
+        : `<div class="text-muted">Aucune donnée</div>`;
+
+    // Orientation hist
     const ori = det.desc.orientation_hist || det.desc.orientations || [];
-
-    document.getElementById("huBox").innerHTML = Array.isArray(hu)
-      ? `<pre class="bg-light p-2 rounded mb-0">${escapeHtml(JSON.stringify(hu, null, 2))}</pre>`
-      : renderKeyValueTable(hu);
-
     renderMiniBars("oriBox", Array.isArray(ori) ? ori : [], 24);
 
+    // Feature vector
     const vec = det.desc.feature_vector || det.desc.vector || [];
     const vecBox = document.getElementById("vectorBox");
     if (vecBox) vecBox.textContent = renderVector(vec, 260);
 
-    // Copy button
+    // Copy vector
     const btnCopy = document.getElementById("btnCopyVector");
     if (btnCopy) {
       btnCopy.onclick = async () => {
         try {
           await navigator.clipboard.writeText(Array.isArray(vec) ? JSON.stringify(vec) : "");
           btnCopy.textContent = "Copié ✅";
-          setTimeout(()=> btnCopy.textContent = "Copier", 1200);
+          setTimeout(() => btnCopy.textContent = "Copier", 1200);
         } catch {
           btnCopy.textContent = "Erreur";
-          setTimeout(()=> btnCopy.textContent = "Copier", 1200);
+          setTimeout(() => btnCopy.textContent = "Copier", 1200);
         }
       };
     }
   }
 
-  // ----------- Selection -----------
+  // ----------------- Selection -----------------
 
   function selectDet(detId) {
     selectedId = detId;
     const det = detections.find(d => d.id === detId);
     if (!det) return;
 
-    // crop input
     const hiddenCrop = document.getElementById("selected_detection_id");
     if (hiddenCrop) hiddenCrop.value = detId;
 
-    // modal hidden
     const hiddenSearch = document.getElementById("search_detection_id");
     if (hiddenSearch) hiddenSearch.value = detId;
 
-    // draw highlight
     drawBoxes(detId);
 
-    // modal title
     const title = document.getElementById("detTitle");
-    if (title) title.textContent = `${det.class_name} (${(det.confidence*100).toFixed(1)}%)`;
+    if (title) title.textContent = `${det.class_name} (${(det.confidence * 100).toFixed(1)}%)`;
 
     fillModalTabs(det);
 
@@ -308,6 +426,8 @@
     window.addEventListener("resize", () => drawBoxes(selectedId || hoverId || null));
   }
 
+  // ----------------- Init -----------------
+
   async function init() {
     try {
       const res = await fetch(dataUrl, { headers: { "Accept": "application/json" } });
@@ -332,6 +452,6 @@
     }
   }
 
-  window.selectDet = selectDet; // for inline onclick if needed
+  window.selectDet = selectDet;
   init();
 })();

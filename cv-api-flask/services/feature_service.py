@@ -6,6 +6,8 @@ from skimage.feature import local_binary_pattern
 from scipy import ndimage as ndi
 
 from utils.cv_ops import l2_normalize
+from sklearn.cluster import MiniBatchKMeans
+
 
 class FeatureService:
     """
@@ -18,7 +20,11 @@ class FeatureService:
     HSV_S_BINS = 4
     HSV_V_BINS = 4
 
-    DOM_COLORS_K = 3  # 3 couleurs dominantes
+    DOM_COLORS_K = 3  # 3 couleurs dominantes (pour le vecteur)
+
+    #  AJOUT: nombre de couleurs dominantes "visuelles" (UI)
+    DOM_COLORS_VIS_K = 5
+    DOM_COLORS_SAMPLE = 8000  # sample pixels pour accélérer
 
     GABOR_FREQS = [0.1, 0.2, 0.3]
     GABOR_THETAS = [0, np.pi/6, 2*np.pi/6, 3*np.pi/6, 4*np.pi/6, 5*np.pi/6]  # 6 orientations
@@ -37,7 +43,14 @@ class FeatureService:
 
         # Descripteurs
         color_hist = self._color_hist_hsv(crop_bgr)
+
+        # --- dominant colors ---
+        # (1) garde ton vecteur LAB (pour index/FAISS)
         dom_colors = self._dominant_colors_lab(crop_bgr, k=self.DOM_COLORS_K)
+
+        #  AJOUT (2) couleurs dominantes VISUELLES en RGB + ratios (pour UI)
+        dom_rgb, dom_ratio = self._dominant_colors_rgb(crop_bgr, k=self.DOM_COLORS_VIS_K)
+
         gabor_vec = self._gabor_stats(crop_bgr)
         tamura = self._tamura_simple(crop_bgr)
         hu = self._hu_moments(crop_bgr)
@@ -63,7 +76,14 @@ class FeatureService:
         # JSON friendly
         return {
             "color_hist_hsv": color_hist.tolist(),
+
+            #  garde l'ancien (vecteur LAB + weights)
             "dominant_colors_lab": dom_colors.tolist(),
+
+            #  AJOUT pour UI: vraies couleurs visibles
+            "dominant_colors_rgb": dom_rgb,            # [[r,g,b],...]
+            "dominant_colors_ratio": dom_ratio,        # [0.42, 0.31, ...]
+
             "gabor": gabor_vec.tolist(),
             "tamura": tamura.tolist(),
             "hu_moments": hu.tolist(),
@@ -115,6 +135,64 @@ class FeatureService:
         vec = np.concatenate([centers.flatten(), weights]).astype(np.float32)
         return vec
 
+    #  AJOUT: Dominant colors pour affichage UI (RGB)
+    def _dominant_colors_rgb(self, bgr, k=5):
+        """
+        Dominant colors robustes:
+        - convertit en HSV
+        - filtre pixels peu saturés (gris/blanc/noir)
+        - KMeans sur RGB filtré
+        """
+        if bgr is None or bgr.size == 0:
+            return [], []
+
+        # Resize safe (déjà fait avant)
+        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+        pixels_hsv = hsv.reshape(-1, 3).astype(np.float32)
+        pixels_rgb = rgb.reshape(-1, 3).astype(np.float32)
+
+        # Sample pour performance
+        n = pixels_rgb.shape[0]
+        if n > self.DOM_COLORS_SAMPLE:
+            idx = np.random.choice(n, self.DOM_COLORS_SAMPLE, replace=False)
+            pixels_hsv = pixels_hsv[idx]
+            pixels_rgb = pixels_rgb[idx]
+
+        # ✅ filtre saturation (enlève gris/blanc)
+        S = pixels_hsv[:, 1]
+        V = pixels_hsv[:, 2]
+
+        # garder pixels "colorés" : saturation > 35 et luminance raisonnable
+        mask = (S > 35) & (V > 20) & (V < 245)
+
+        rgb_f = pixels_rgb[mask]
+
+        # fallback si trop peu de pixels colorés
+        if rgb_f.shape[0] < 80:
+            mean = pixels_rgb.mean(axis=1)
+            mask2 = (mean > 15) & (mean < 245)
+            rgb_f = pixels_rgb[mask2]
+            if rgb_f.shape[0] < 80:
+                rgb_f = pixels_rgb
+
+        km = MiniBatchKMeans(n_clusters=k, random_state=0, batch_size=2048, n_init="auto")
+        labels = km.fit_predict(rgb_f)
+        centers = km.cluster_centers_
+
+        counts = np.bincount(labels, minlength=k).astype(np.float32)
+        total = float(counts.sum()) if counts.sum() > 0 else 1.0
+        ratios = counts / total
+
+        order = np.argsort(-ratios)
+        centers = centers[order].astype(np.int32)
+        centers = np.clip(centers, 0, 255)
+        ratios = ratios[order]
+
+        return centers.tolist(), ratios.astype(float).tolist()
+
+
     def _gabor_stats(self, bgr):
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
         feats = []
@@ -141,18 +219,14 @@ class FeatureService:
         mag = np.sqrt(gx * gx + gy * gy) + 1e-12
         ang = (np.arctan2(gy, gx) + np.pi)  # [0,2pi]
 
-        # Coarseness approx: plus l'énergie est concentrée à grande échelle, plus coarseness ↑
-        # On calcule énergie des gradients après lissage à différentes sigmas
         energies = []
         for sigma in (1.0, 2.0, 4.0):
             sm = ndi.gaussian_filter(mag, sigma=sigma)
             energies.append(float(sm.mean()))
         coarseness = float(np.mean(energies))
 
-        # Contrast approx
         contrast = float(gray.std())
 
-        # Directionality: entropie histogramme angles pondéré par mag
         bins = 36
         hist, _ = np.histogram(ang.flatten(), bins=bins, range=(0, 2*np.pi), weights=mag.flatten(), density=False)
         hist = hist.astype(np.float32)
@@ -160,13 +234,12 @@ class FeatureService:
         if s > 0:
             hist /= s
         entropy = float(-(hist * np.log(hist + 1e-12)).sum())
-        directionality = float(1.0 / (entropy + 1e-6))  # plus entropy faible => directionality forte
+        directionality = float(1.0 / (entropy + 1e-6))
 
         return np.array([coarseness, contrast, directionality], dtype=np.float32)
 
     def _hu_moments(self, bgr):
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-        # binarisation adaptative pour contour
         thr = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                     cv2.THRESH_BINARY, 31, 2)
         contours, _ = cv2.findContours(thr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -176,8 +249,6 @@ class FeatureService:
         cnt = max(contours, key=cv2.contourArea)
         m = cv2.moments(cnt)
         hu = cv2.HuMoments(m).flatten().astype(np.float32)
-
-        # log transform (standard)
         hu = np.sign(hu) * np.log10(np.abs(hu) + 1e-12)
         return hu
 
@@ -185,7 +256,6 @@ class FeatureService:
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 80, 160)
 
-        # gradients sur edges
         gx = cv2.Sobel(edges.astype(np.float32), cv2.CV_32F, 1, 0, ksize=3)
         gy = cv2.Sobel(edges.astype(np.float32), cv2.CV_32F, 0, 1, ksize=3)
         mag = np.sqrt(gx*gx + gy*gy) + 1e-12
@@ -202,7 +272,6 @@ class FeatureService:
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
         lbp = local_binary_pattern(gray, P=self.LBP_P, R=self.LBP_R, method=self.LBP_METHOD)
 
-        # pour "uniform" : nb bins = P + 2
         n_bins = self.LBP_P + 2
         hist, _ = np.histogram(lbp.ravel(), bins=n_bins, range=(0, n_bins), density=False)
         hist = hist.astype(np.float32)

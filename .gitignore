@@ -121,3 +121,7 @@ dataset/
 *.npz
 *.pickle
 *.pkl
+
+# Ignore tout le dossier 3dDataset (données volumineuses, modèles 3D)
+/3dDataset
+/3dDataset/**

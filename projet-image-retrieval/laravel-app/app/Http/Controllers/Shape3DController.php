@@ -8,11 +8,9 @@ use Illuminate\Support\Facades\Storage;
 
 class Shape3DController extends Controller
 {
-    /*
-    |--------------------------------------------------------------------------
-    | CATALOGUE
-    |--------------------------------------------------------------------------
-    */
+    /* ==============================
+     * CATALOGUE
+     * ============================== */
     public function models()
     {
         $files = collect(Storage::disk('public')->files('models3d'))
@@ -23,77 +21,99 @@ class Shape3DController extends Controller
         return view('shape3d.models', compact('files'));
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | UPLOAD (.obj)
-    |--------------------------------------------------------------------------
-    */
+    /* ==============================
+     * UPLOAD
+     * ============================== */
     public function uploadModels(Request $request)
     {
         $request->validate([
-            'model' => 'required|file|max:51200',
+            'model' => 'required|file|max:51200'
         ]);
 
         $file = $request->file('model');
 
-        if (strtolower($file->getClientOriginalExtension()) !== 'obj') {
-            return back()->withErrors([
-                'model' => 'Le fichier doit être au format .obj'
-            ]);
+        if ($file->getClientOriginalExtension() !== 'obj') {
+            return back()->withErrors(['model' => 'Format .obj requis']);
         }
 
-        $file->storeAs(
-            'models3d',
-            $file->getClientOriginalName(),
-            'public'
-        );
+        $file->storeAs('models3d', $file->getClientOriginalName(), 'public');
 
-        return redirect()
-            ->route('shape3d.models')
-            ->with('success', 'Modèle 3D importé avec succès');
+        return back()->with('success', 'Modèle uploadé');
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | VIEWER 3D
-    |--------------------------------------------------------------------------
-    */
+    /* ==============================
+     * VIEWER
+     * ============================== */
     public function showModel(string $filename)
     {
         return view('shape3d.show', compact('filename'));
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | SEARCH FROM STORED MODEL
-    |--------------------------------------------------------------------------
-    */
+    /* ==============================
+     * BUILD INDEX (IMPORTANT)
+     * ============================== */
+    public function buildIndex()
+    {
+        $flask = config('services.flask.base');
+
+        try {
+            $response = Http::timeout(600)->post(
+                $flask . '/index-3d',
+                [
+                    'models_dir' => storage_path('app/public/models3d'),
+                    'labels_csv' => storage_path('app/labels.csv')
+                ]
+            );
+
+            if (!$response->ok()) {
+                return back()->withErrors([
+                    'flask' => 'Erreur Flask : ' . $response->body()
+                ]);
+            }
+
+            return back()->with('success', 'Index FAISS créé avec succès');
+
+        } catch (\Exception $e) {
+            return back()->withErrors([
+                'flask' => 'Connexion Flask échouée : ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /* ==============================
+     * SEARCH SIMILAR
+     * ============================== */
     public function searchFromModel(Request $request)
     {
-        $request->validate([
-            'filename' => 'required|string'
-        ]);
-
         $filename = $request->input('filename');
         $path = storage_path("app/public/models3d/$filename");
 
         if (!file_exists($path)) {
-            return back()->withErrors(['model' => 'Fichier introuvable']);
+            return back()->withErrors(['file' => 'Fichier introuvable']);
         }
 
         $flask = config('services.flask.base');
 
-        $resp = Http::timeout(300)
-            ->attach('file', file_get_contents($path), $filename)
-            ->post("$flask/search-3d");
+        try {
+            $response = Http::timeout(300)
+                ->attach('file', file_get_contents($path), $filename)
+                ->post($flask . '/search-3d', ['top_k' => 10]);
 
-        if (!$resp->ok()) {
-            return back()->withErrors(['flask' => 'Erreur API Flask']);
+            if (!$response->ok()) {
+                return back()->withErrors(['flask' => 'Erreur API Flask']);
+            }
+
+            $results = data_get($response->json(), 'data.results', []);
+
+            return view('shape3d.results', [
+                'query' => $filename,
+                'results' => $results
+            ]);
+
+        } catch (\Exception $e) {
+            return back()->withErrors([
+                'flask' => 'Connexion Flask échouée'
+            ]);
         }
-
-        $results = data_get($resp->json(), 'data.results', []);
-
-        return view('shape3d.results', compact('filename', 'results'));
     }
 }

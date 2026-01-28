@@ -113,3 +113,62 @@ class Shape3DIndexService:
             })
 
         return results
+    def add_one(self, obj_path, label="Unknown"):
+        """
+        Ajoute dynamiquement un modèle 3D à l'index FAISS
+        """
+
+        # Charger ou créer l'index
+        if os.path.exists(self.index_path):
+            self.load()
+        else:
+            self.index = None
+            self.metadata = []
+
+        # Pipeline 3D
+        pts = Shape3DLoader.load_obj(obj_path)
+        pts = Shape3DNormalizer.normalize(pts)
+
+        sc = ShapeContext3D()
+
+        num_keypoints = min(50, pts.shape[0])
+        ref_indices = np.random.choice(
+            pts.shape[0],
+            num_keypoints,
+            replace=False
+        )
+
+        local_desc = np.array([
+            sc.compute(pts, idx)
+            for idx in ref_indices
+        ])
+
+        global_desc = aggregate_descriptor(local_desc).astype("float32")
+
+        # Création index si vide
+        if self.index is None:
+            dim = global_desc.shape[0]
+            self.index = faiss.IndexFlatL2(dim)
+
+        # Ajout FAISS
+        self.index.add(global_desc.reshape(1, -1))
+
+        model_id = len(self.metadata)
+
+        self.metadata.append({
+            "id": model_id,
+            "filename": os.path.basename(obj_path),
+            "label": label,
+        })
+
+        # Sauvegarde
+        faiss.write_index(self.index, self.index_path)
+        with open(self.meta_path, "wb") as f:
+            pickle.dump(self.metadata, f)
+
+        return {
+            "id": model_id,
+            "filename": os.path.basename(obj_path),
+            "label": label
+        }
+

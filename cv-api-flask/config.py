@@ -1,8 +1,16 @@
+DEBUG = True
 import os
 
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+print("BASE_DIR =", BASE_DIR)
+
+
+
 
 class Config:
+    DEBUG = True
     # Paths
     WEIGHTS_PATH = os.getenv("WEIGHTS_PATH", os.path.join(BASE_DIR, "weights", "best.pt"))
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(BASE_DIR, "data", "uploads"))
@@ -13,8 +21,9 @@ class Config:
     PORT = int(os.getenv("FLASK_PORT", "5000"))
     DEBUG = os.getenv("FLASK_DEBUG", "1") == "1"
 
-    # Upload limits (10MB default)
-    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(10 * 1024 * 1024)))
+   
+    # Upload limits (100MB for 3D models)
+    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(50 * 1024 * 1024)))
 
     # YOLO settings
     YOLO_CONF = float(os.getenv("YOLO_CONF", "0.25"))

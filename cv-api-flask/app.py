@@ -11,7 +11,7 @@ from ressources.detect import DetectResource
 from utils.responses import err
 
 from ressources.descriptors import DescribeResource
-from ressources.search import IndexAddResource, SearchSimilarResource
+# from ressources.search import IndexAddResource, SearchSimilarResource
 from services.index_service import FaissIndexService
 
 from ressources.search import (
@@ -51,32 +51,32 @@ def create_app():
     
     api.add_resource(DescribeResource, "/describe")
 
-    api.add_resource(
-        IndexAddResource, "/index/add",
-        resource_class_kwargs={"index_service": index_service}
-    )
-    api.add_resource(
-        SearchSimilarResource, "/search-similar",
-        resource_class_kwargs={"index_service": index_service}
-    )
+    # api.add_resource(
+    #     IndexAddResource, "/index/add",
+    #     resource_class_kwargs={"index_service": index_service}
+    # )
+    # api.add_resource(
+    #     SearchSimilarResource, "/search-similar",
+    #     resource_class_kwargs={"index_service": index_service}
+    # )
     
     
 
-    index_service = FaissIndexService(
-    base_dir=os.path.join(os.path.dirname(__file__), "data", "faiss"),
-    preload=True
-    )
+    # index_service = FaissIndexService(
+    # base_dir=os.path.join(os.path.dirname(__file__), "data", "faiss"),
+    # preload=True
+    # )
     
     api.add_resource(Index3DResource, "/index-3d")
     api.add_resource(Search3DResource, "/search-3d")
     api.add_resource(Stats3DResource, "/stats-3d")
 
     
-    @app.errorhandler(Exception)
-    def handle_exception(e):
-        if isinstance(e, HTTPException):
-            return err(e.description, e.code)
-        return err("Internal server error", 500, {"error": str(e)})
+    # @app.errorhandler(Exception)
+    # def handle_exception(e):
+    #     if isinstance(e, HTTPException):
+    #         return err(e.description, e.code)
+    #     return err("Internal server error", 500, {"error": str(e)})
 
     return app
 

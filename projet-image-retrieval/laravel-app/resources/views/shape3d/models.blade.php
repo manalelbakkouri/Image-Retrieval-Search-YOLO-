@@ -100,28 +100,25 @@
             Visualiser le modèle ou lancer une recherche CBIR 3D
           </div>
 
-          <div class="d-flex gap-2 mt-3">
+        <div class="d-flex gap-2 mt-3">
 
-            {{-- VIEWER 3D --}}
-            <a href="{{ route('shape3d.show', $filename) }}"
-               class="btn btn-outline-primary vs-btn btn-sm w-50">
-               Viewer
-            </a>
+  {{-- Viewer --}}
+  <a href="{{ route('shape3d.show', $f) }}"
+     class="btn btn-primary vs-btn btn-sm w-100">
+    Viewer
+  </a>
 
-            {{-- SEARCH SIMILAR --}}
-            <form method="POST"
-                  action="{{ route('shape3d.search.from.model') }}"
-                  class="w-50">
-              @csrf
-              <input type="hidden"
-                     name="filename"
-                     value="{{ $filename }}">
-              <button class="btn btn-success vs-btn btn-sm w-100">
-                 Similaires
-              </button>
-            </form>
+  {{-- Indexer --}}
+  <form method="POST"
+        action="{{ route('shape3d.index.model', $f) }}">
+    @csrf
+    <button class="btn btn-warning vs-btn btn-sm">
+      Indexer
+    </button>
+  </form>
 
-          </div>
+</div>
+
 
         </div>
       </div>

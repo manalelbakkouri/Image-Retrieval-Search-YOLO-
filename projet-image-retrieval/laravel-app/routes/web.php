@@ -6,6 +6,7 @@ use App\Http\Controllers\TransformController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Shape3DController;
 
+
 /*
 |--------------------------------------------------------------------------
 | HOME
@@ -100,4 +101,16 @@ Route::prefix('shape3d')->name('shape3d.')->group(function () {
     */
     Route::post('/search', [Shape3DController::class, 'search'])
         ->name('search');
+
+    Route::post('/index/{filename}', 
+    [Shape3DController::class, 'indexModel']
+)->name('index.model');
+
+
+
+Route::get('/shape3d/demo', function () {
+    return view('shape3d.demo_results');
+})->name('shape3d.demo');
+
+
 });

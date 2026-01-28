@@ -125,3 +125,13 @@ dataset/
 # Ignore tout le dossier 3dDataset (données volumineuses, modèles 3D)
 /3dDataset
 /3dDataset/**
+
+/public/shape3d/models/
+/public/shape3d/results/
+# Ignore les fichiers temporaires de Shape3D
+/temp/shape3d/  
+/temp/shape3d/**
+
+/public/shape3d/thubnails/
+# Ignore les fichiers temporaires de Shape3D
+/temp/shape3d/thubnails/**  

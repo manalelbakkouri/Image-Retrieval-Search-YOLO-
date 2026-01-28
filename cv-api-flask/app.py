@@ -14,6 +14,11 @@ from ressources.descriptors import DescribeResource
 from ressources.search import IndexAddResource, SearchSimilarResource
 from services.index_service import FaissIndexService
 
+from ressources.search import (
+        Index3DResource,
+        Search3DResource,
+        Stats3DResource
+    )
 
 def create_app():
     app = Flask(__name__)
@@ -55,10 +60,16 @@ def create_app():
         resource_class_kwargs={"index_service": index_service}
     )
     
+    
+
     index_service = FaissIndexService(
     base_dir=os.path.join(os.path.dirname(__file__), "data", "faiss"),
     preload=True
     )
+    
+    api.add_resource(Index3DResource, "/index-3d")
+    api.add_resource(Search3DResource, "/search-3d")
+    api.add_resource(Stats3DResource, "/stats-3d")
 
     
     @app.errorhandler(Exception)

@@ -4,6 +4,19 @@ from flask import request, current_app
 
 from utils.responses import ok, err
 from services.index_service import FaissIndexService
+from services.shape3d_index_service import Shape3DIndexService
+from utils.responses import ok, err
+
+
+import os
+import tempfile
+
+from services.shape3d_index_service import Shape3DIndexService
+from services.shape3d_loader import Shape3DLoader
+from services.shape3d_normalizer import Shape3DNormalizer
+from services.shape_context_3d import ShapeContext3D
+from services.shape3d_matching import aggregate_descriptor
+from utils.responses import ok, err
 
 class IndexAddResource(Resource):
     """
@@ -87,3 +100,99 @@ class SearchSimilarResource(Resource):
             return err("FAISS search failed", 500, {"error": str(e)})
 
         return ok({"class_id": class_id, "top_k": top_k, "results": results})
+
+
+class Index3DResource(Resource):
+
+    def post(self):
+        try:
+            models_dir = request.json.get("models_dir")
+            labels_csv = request.json.get("labels_csv")
+
+            if not models_dir or not labels_csv:
+                return err("models_dir and labels_csv required", 400)
+
+            svc = Shape3DIndexService()
+            svc.build_index(models_dir, labels_csv)
+
+            return ok({"message": "Index 3D créé avec succès"})
+
+        except Exception as e:
+            return err("Indexation 3D échouée", 500, {"error": str(e)})
+
+
+
+
+
+
+class Search3DResource(Resource):
+
+    def post(self):
+        try:
+            if "file" not in request.files:
+                return err("Fichier .obj manquant", 400)
+
+            file = request.files["file"]
+            top_k = int(request.form.get("top_k", 10))
+
+            # Sauvegarde temporaire
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".obj")
+            file.save(tmp.name)
+
+            # Pipeline 3D
+            pts = Shape3DLoader.load_obj(tmp.name)
+            pts = Shape3DNormalizer.normalize(pts)
+
+            sc = ShapeContext3D()
+            ref_idx = np.random.choice(
+                pts.shape[0],
+                min(50, pts.shape[0]),
+                replace=False
+            )
+
+            local_desc = np.array([
+                sc.compute(pts, i) for i in ref_idx
+            ])
+
+            query_desc = aggregate_descriptor(local_desc)
+
+            # Recherche
+            svc = Shape3DIndexService()
+            results = svc.search(query_desc, top_k=top_k)
+
+            os.unlink(tmp.name)
+
+            return ok({
+                "query_size": pts.shape[0],
+                "results": results
+            })
+
+        except Exception as e:
+            return err("Recherche 3D échouée", 500, {"error": str(e)})
+
+
+
+class Stats3DResource(Resource):
+
+    def post(self):
+        try:
+            query_label = request.json.get("query_label")
+            results = request.json.get("results")
+
+            if not query_label or not results:
+                return err("query_label and results required", 400)
+
+            correct = sum(
+                1 for r in results if r["label"] == query_label
+            )
+
+            precision = correct / len(results)
+
+            return ok({
+                "precision": round(precision, 3),
+                "correct": correct,
+                "total": len(results)
+            })
+
+        except Exception as e:
+            return err("Statistiques échouées", 500, {"error": str(e)})
